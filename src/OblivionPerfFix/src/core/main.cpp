@@ -192,6 +192,7 @@ DWORD WINAPI MonitorThread(LPVOID)
         if (g_physAnimHooked) SetPhysAnimNoEmptyLock(cfg.physAnimNoEmptyLock);
         SetRigTraceReuse(cfg.rigTraceReuse);  // RigTraceReuse: no-op unless installed at start-up
         SetRigImportTemplate(cfg.rigImportTemplate);  // RigImportTemplate: no-op unless installed at start-up
+        SetPerceptionLosPrefetch(cfg.perceptionLosPrefetch, cfg.perceptionLosPrefetchMin, ParallelHelpersAllowed(cfg));  // no-op unless installed
         SetFarPawnMove(cfg.farPawnMoveHalfRate, cfg.farPawnMoveHz, cfg.farHorseMove);  // FarPawnMove: no effect unless installed
         SetCreatePreload(cfg.createPreload);          // CreatePreload: no effect unless installed at start-up
         SetCreatePreloadNear(cfg.createPreloadNear);
@@ -341,6 +342,7 @@ DWORD WINAPI MonitorThread(LPVOID)
             if (g_physAnimHooked) LogPhysAnimNoEmptyLockStats();
             LogRigTraceReuseStats();
             LogRigImportTemplateStats();
+            LogPerceptionLosPrefetchStats();  // PerceptionLosPrefetch (no line when no round ran)
             LogFarPawnMoveStats();  // FarPawnMoveHalfRate / FarHorseMove (no line when nothing qualified)
             LogCreatePreloadStats();  // CreatePreload (no line when nothing waited)
             LogOtFrameTrimStats();    // OtFrameTrim (no line when the frame-start sleep did not run)
@@ -883,6 +885,12 @@ void Init(const char* loadedVia, bool proxyOk, bool beforeGameCode)
     if (rigTraceInstall) {
         if (InstallRigTraceReuse(beforeGameCode, g_iniPath.c_str())) SetRigTraceReuse(cfg.rigTraceReuse);
     } else Log("[rigtrace] RigTraceReuse disabled in OblivionPerfFix.ini (takes a restart to switch on)");
+    // PerceptionLosPrefetch (fork, default off): two call redirections in the NPC perception round, written only before the
+    // game's code runs (version.dll route), installed only if not 0 at start-up, then live.
+    if (cfg.perceptionLosPrefetch != 0) {
+        if (InstallPerceptionLosPrefetch(beforeGameCode, cfg.perceptionLosPrefetchThreads))
+            SetPerceptionLosPrefetch(cfg.perceptionLosPrefetch, cfg.perceptionLosPrefetchMin, ParallelHelpersAllowed(cfg));
+    } else Log("[perclos] PerceptionLosPrefetch off in OblivionPerfFix.ini (takes a restart to switch on)");
     // RigImportTemplate (Altar's Control Rig: the first bone import of a new rig): the RemoveElement guard, then entry detours
     // of the node's CacheBones and ImportBones; written only before the game's code runs (version.dll route), installed only if
     // on at start-up, then live.

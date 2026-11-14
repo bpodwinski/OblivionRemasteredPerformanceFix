@@ -9,6 +9,15 @@ Downloads, checksums and build attestations: https://github.com/LTSharpe/Oblivio
 Bug fixes say whose bug it was: **game bug** = also happens without OblivionPerfFix (in the game, its engine or a
 driver library); **our bug** = caused by an earlier version of OblivionPerfFix.
 
+## Unreleased
+- **New, off by default: `PerceptionLosPrefetch`** (fork, not measured yet). A character's perception round checks the
+  line of sight to each character near it (up to three sight lines per pair) on the game's main thread; this works the
+  round's sight lines out on helper threads first and hands each answer to the game's own loop in its own order.
+  `PerceptionLosPrefetch=2` checks only (the game's check runs too; differences are counted in the `[perclos]` line).
+- Benchmark setup: `-UE4SSZip` works again (a variable of the same name cleared it), the UE4SS 3.0.1 builds are taken from
+  upstream's archive release now that `experimental-latest` holds v4.0.0, and `Find-VCVars.ps1` honours `OPF_VCVARS` and
+  finds a preview / Insiders Visual Studio.
+
 ## 1.4.0-beta
 2026-11-11. For Oblivion Remastered, Steam build 19115871 (Game Pass experimental). Numbers marked "ours" are from our
 test PC (Ryzen 7 5800X, RX 9070 XT: one PC with an AMD graphics card; nothing here was tested on an NVIDIA card).

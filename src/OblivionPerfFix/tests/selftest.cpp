@@ -3670,6 +3670,130 @@ int wmain(int argc, wchar_t** argv)
                 LogChaosMaxPayloadSizeLive();
             }
         }
+        // PerceptionLosPrefetch (fork): the perception round, its line-of-sight call site and the helper found and checked
+        // (discovery only; no writes); then the batch and the serve with a fake helper and fake pawns
+        {
+            uint32_t rr = 0, rc = 0, rh = 0;
+            const char* why = PerceptionLosTestDiscover(game, &rr, &rc, &rh);
+            if (why) printf("      perclos: %s\n", why);
+            Check(!why, "perclos: the perception round, its line-of-sight call site and the helper found and checked");
+            Check(rr == 0x485FAF4, "perclos: the perception round's list and settings calls at exe+0x485FAF4");
+            Check(rc == 0x485FCDC, "perclos: the line-of-sight call site at exe+0x485FCDC");
+            Check(rh == 0x485A170, "perclos: the line-of-sight helper at exe+0x485A170");
+
+            // fake class {chain at +0x30 -> [cls+0x30 at depth 1], depth +0x38 = 1}; pawns of 0x800 bytes: class +0x10,
+            // paired +0x7B8 (-> +0x120 non-zero), root +0x1A0 (-> location doubles at +0x280)
+            alignas(16) static uint8_t cls[0x100] = {}, other[0x100] = {}, paired[0x200] = {};
+            alignas(16) static uint8_t roots[6][0x300] = {};
+            alignas(16) static uint8_t pawns[6][0x800] = {};
+            static const uint8_t* chain[2];
+            chain[0] = nullptr;
+            chain[1] = cls + 0x30;
+            const void* chainPtr = chain;
+            memcpy(cls + 0x30, &chainPtr, 8);
+            const int depth = 1, otherDepth = 1;
+            memcpy(cls + 0x38, &depth, 4);
+            static const uint8_t* otherChain[2] = {nullptr, other + 0x30};
+            const void* otherChainPtr = otherChain;
+            memcpy(other + 0x30, &otherChainPtr, 8);
+            memcpy(other + 0x38, &otherDepth, 4);
+            const uint64_t one = 1;
+            memcpy(paired + 0x120, &one, 8);
+            // pawn 0 = the NPC at the origin; 1..3 in range (100, 200, 300 units); 4 far (5000); 5 of another class
+            const double xs[6] = {0, 100, 200, 300, 5000, 50};
+            for (int i = 0; i < 6; ++i) {
+                const uint8_t* c = i == 5 ? other : cls;
+                memcpy(pawns[i] + 0x10, &c, 8);
+                const uint8_t* pp = paired;
+                memcpy(pawns[i] + 0x7B8, &pp, 8);
+                const uint8_t* rp = roots[i];
+                memcpy(pawns[i] + 0x1A0, &rp, 8);
+                memcpy(roots[i] + 0x280, &xs[i], 8);
+            }
+            static uint8_t* listData[6];
+            for (int i = 0; i < 6; ++i) listData[i] = pawns[i];
+            alignas(16) static uint8_t list[16] = {};
+            const void* ld = listData;
+            const int ln = 6;
+            memcpy(list, &ld, 8);
+            memcpy(list + 8, &ln, 4);
+            // range: a = 10, b = 50, constant 1: (a*1*b) * (a*b) = 250000 = 500 units squared
+            alignas(16) static uint8_t settings[0x500] = {};
+            const float ra = 10.0f, rb = 50.0f;
+            memcpy(settings + 0x4E8, &ra, 4);
+            memcpy(settings + 0x4EC, &rb, 4);
+            static std::atomic<int> helperCalls{0};
+            static std::atomic<int> salt{0};
+            auto fakeHelper = [](uint8_t*, uint8_t* o, uint8_t* out, int tries, uint8_t flag) -> uint8_t {
+                helperCalls.fetch_add(1);
+                *out = static_cast<uint8_t>(((reinterpret_cast<uintptr_t>(o) >> 11) & 1) + static_cast<uint8_t>(salt.load()));
+                return static_cast<uint8_t>(tries == 3 && flag == 1);
+            };
+            auto fakeClass = []() -> const uint8_t* { return cls; };
+            void* fh = reinterpret_cast<void*>(static_cast<uint8_t (*)(uint8_t*, uint8_t*, uint8_t*, int, uint8_t)>(fakeHelper));
+            void* fc = reinterpret_cast<void*>(static_cast<const uint8_t* (*)()>(fakeClass));
+            uint64_t s0, v0, d0, f0, j0, s1, v1, d1, f1, j1;
+            // on, 2 helper threads: pawns 1..3 precomputed (the NPC itself, the far pawn and the other class are not)
+            PerceptionLosTestSetup(fh, fc, 1.0f, 1, 2, 2);
+            PerceptionLosTestCounts(&s0, &v0, &d0, &f0, &j0);
+            helperCalls = 0;
+            PerceptionLosTestPrefetch(pawns[0], list, settings);
+            PerceptionLosTestCounts(&s1, &v1, &d1, &f1, &j1);
+            Check(j1 == j0 + 3 && helperCalls == 3, "perclos on: the three pawns in range of the NPC's class are precomputed");
+            // the game's loop asks pawns 2, 1, 3 (any order) then the far pawn: three served, the far one runs the helper
+            bool same = true;
+            for (int k : {2, 1, 3}) {
+                uint8_t out = 3, ref = 3;
+                const uint8_t r = PerceptionLosTestCall(pawns[0], pawns[k], &out, 3, 1);
+                const uint8_t rref = fakeHelper(pawns[0], pawns[k], &ref, 3, 1);
+                same = same && r == rref && out == ref;
+            }
+            uint8_t outFar = 3;
+            PerceptionLosTestCall(pawns[0], pawns[4], &outFar, 3, 1);
+            PerceptionLosTestCounts(&s1, &v1, &d1, &f1, &j1);
+            Check(same && s1 == s0 + 3 && f1 == f0 + 1 && helperCalls == 3 + 3 + 1,
+                  "perclos on: precomputed answers served bit for bit, a pawn not precomputed runs the game's helper");
+            // a second ask of the same pawn, other arguments, another NPC: the game's helper
+            uint8_t o2 = 3, o3 = 3, o4 = 3, o5 = 2;
+            PerceptionLosTestCall(pawns[0], pawns[1], &o2, 3, 1);
+            PerceptionLosTestCall(pawns[0], pawns[2], &o3, 2, 1);
+            PerceptionLosTestCall(pawns[1], pawns[3], &o4, 3, 1);
+            PerceptionLosTestCall(pawns[0], pawns[3], &o5, 3, 1);
+            PerceptionLosTestCounts(&s1, &v1, &d1, &f1, &j1);
+            Check(s1 == s0 + 3 && f1 == f0 + 5, "perclos on: a repeat, other tries, another NPC or another result byte run the game's helper");
+            // too few pawns in range for a batch: nothing precomputed, every call runs the helper
+            PerceptionLosTestSetup(fh, fc, 1.0f, 1, 4, 2);
+            PerceptionLosTestPrefetch(pawns[0], list, settings);
+            uint8_t o6 = 3;
+            PerceptionLosTestCall(pawns[0], pawns[1], &o6, 3, 1);
+            uint64_t j2, s2, f2;
+            PerceptionLosTestCounts(&s2, nullptr, nullptr, &f2, &j2);
+            Check(j2 == j1 && s2 == s1 && f2 == f1 + 1, "perclos: below PerceptionLosPrefetchMin no batch, the game's helper runs");
+            // verify: the game's helper runs, its answer is kept and compared (the salt makes pawn 2 differ)
+            PerceptionLosTestSetup(fh, fc, 1.0f, 2, 2, 2);
+            PerceptionLosTestPrefetch(pawns[0], list, settings);
+            salt = 0;
+            uint8_t ov1 = 3;
+            const uint8_t rv1 = PerceptionLosTestCall(pawns[0], pawns[1], &ov1, 3, 1);
+            salt = 4;
+            uint8_t ov2 = 3;
+            PerceptionLosTestCall(pawns[0], pawns[2], &ov2, 3, 1);
+            salt = 0;
+            uint64_t s3, v3, d3;
+            PerceptionLosTestCounts(&s3, &v3, &d3, nullptr, nullptr);
+            Check(rv1 == 1 && s3 == s2 && v3 == v1 + 2 && d3 == d1 + 1 && ov2 >= 4,
+                  "perclos verify: the game's helper runs, its answer is kept, a different answer is counted");
+            // off: nothing precomputed, every call runs the helper
+            PerceptionLosTestSetup(fh, fc, 1.0f, 0, 2, 2);
+            uint64_t j4;
+            PerceptionLosTestCounts(nullptr, nullptr, nullptr, nullptr, &j4);
+            PerceptionLosTestPrefetch(pawns[0], list, settings);
+            uint8_t o7 = 3;
+            PerceptionLosTestCall(pawns[0], pawns[1], &o7, 3, 1);
+            uint64_t s5, j5;
+            PerceptionLosTestCounts(&s5, nullptr, nullptr, nullptr, &j5);
+            Check(j5 == j4 && s5 == s3, "perclos off: nothing precomputed or served");
+        }
         // RigTraceReuse (public since 1.2.3, corral2): the sphere-trace rig unit and UControlRig::Execute found once by pattern
         // (discovery only; no writes); the lab's second world-trace unit (RigTraceReuse2)
         Check(RigTraceUnitDiscover(game) == 0x4B83E90, "rigtrace: the sphere-trace rig unit at exe+0x4B83E90");
