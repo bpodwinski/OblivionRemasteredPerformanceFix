@@ -343,6 +343,7 @@ DWORD WINAPI MonitorThread(LPVOID)
             LogRigTraceReuseStats();
             LogRigImportTemplateStats();
             LogPerceptionLosPrefetchStats();  // PerceptionLosPrefetch (no line when no round ran)
+            LogBodySyncProbeStats();          // BodySyncProbe (diagnostic; no-op unless installed)
             LogFarPawnMoveStats();  // FarPawnMoveHalfRate / FarHorseMove (no line when nothing qualified)
             LogCreatePreloadStats();  // CreatePreload (no line when nothing waited)
             LogOtFrameTrimStats();    // OtFrameTrim (no line when the frame-start sleep did not run)
@@ -891,6 +892,8 @@ void Init(const char* loadedVia, bool proxyOk, bool beforeGameCode)
         if (InstallPerceptionLosPrefetch(beforeGameCode, cfg.perceptionLosPrefetchThreads))
             SetPerceptionLosPrefetch(cfg.perceptionLosPrefetch, cfg.perceptionLosPrefetchMin, ParallelHelpersAllowed(cfg), cfg.perceptionLosPrefetchOverlap, cfg.perceptionLosIgnoreCache, cfg.perceptionLosCrossRound);
     } else Log("[perclos] PerceptionLosPrefetch off in OblivionPerfFix.ini (takes a restart to switch on)");
+    // BodySyncProbe (diagnostic, fork, default off): two counting entry detours, start-up only.
+    if (cfg.bodySyncProbe != 0) InstallBodySyncProbe(beforeGameCode, cfg.bodySyncProbe);
     // RigImportTemplate (Altar's Control Rig: the first bone import of a new rig): the RemoveElement guard, then entry detours
     // of the node's CacheBones and ImportBones; written only before the game's code runs (version.dll route), installed only if
     // on at start-up, then live.

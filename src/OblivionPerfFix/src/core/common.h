@@ -277,6 +277,7 @@ struct Config {
     int rigTraceReuse = 1;               // RigTraceReuse: npcs/rig_trace_reuse.cpp, a Control Rig sphere trace repeated with identical
                                          // inputs inside one rig execution reuses its result (equivalent): 1 on, 2 verify (runs and
                                          // compares), 0 off; installed only if not 0 at start-up (version.dll route), then live
+    int bodySyncProbe = 0;               // BodySyncProbe (diagnostic, fork): diagnostics/body_sync_probe.cpp, 1 counts, 2 + call paths
     int perceptionLosPrefetch = 0;       // PerceptionLosPrefetch: npcs/perception_los_prefetch.cpp, a perception round's line-of-sight
                                          // checks precomputed on helper threads and served in the game's order (equivalent): 1 on,
                                          // 2 verify, 0 off (default: not measured yet); installed only if not 0 at start-up
@@ -1257,6 +1258,11 @@ void PerceptionLosTestSetOverlap(bool on);  // self-test only: the overlap with 
 bool PerceptionLosTestJoin();               // self-test only: the round-end join (true = a batch was open)
 uint32_t PerceptionLosTestJoinSite(const GameModule& game);  // self-test: the round-end join's call site RVA (0 = not found)
 void LogPerceptionLosPrefetchStats();
+// body_sync_probe.cpp (diagnostic BodySyncProbe, fork, default off): counts the game thread's scene-query element updates and
+// physics write commands per element and frame (repeats, unchanged bounds), mode 2 also by call path. Start-up only.
+bool InstallBodySyncProbe(bool beforeGameCode, int mode);
+const void* FarPawnMoveTicking();  // far_pawn_move.cpp: the movement component ticking on this thread (nullptr outside)
+void LogBodySyncProbeStats();
 const char* PerceptionLosTestDiscover(const GameModule& game, uint32_t* round, uint32_t* callSite, uint32_t* helper,
                                       uint32_t* fov);  // self-test: nullptr = found (fov 0 = the field-of-view filter not found)
 void PerceptionLosTestSetup(void* fakeHelper, void* fakeClass, void* fakeFov, float rangeConst, int mode, int minJobs, int threads);  // self-test only

@@ -154,6 +154,8 @@ Config LoadConfig(const wchar_t* iniPath)
     c.perceptionLosPrefetchOverlap = get(L"Fixes", L"PerceptionLosPrefetchOverlap", c.perceptionLosPrefetchOverlap) != 0;
     c.perceptionLosIgnoreCache = get(L"Fixes", L"PerceptionLosIgnoreCache", c.perceptionLosIgnoreCache) != 0;
     c.perceptionLosCrossRound = get(L"Fixes", L"PerceptionLosCrossRound", c.perceptionLosCrossRound) != 0;
+    c.bodySyncProbe = get(L"Fixes", L"BodySyncProbe", c.bodySyncProbe);
+    if (c.bodySyncProbe < 0 || c.bodySyncProbe > 2) c.bodySyncProbe = 0;
     c.chaosMaxPayloadSize = get(L"Fixes", L"ChaosMaxPayloadSize", c.chaosMaxPayloadSize);
     c.osPageCache = get(L"Fixes", L"OsPageCache", c.osPageCache);
     c.osPageCacheMB = get(L"Fixes", L"OsPageCacheMB", c.osPageCacheMB);

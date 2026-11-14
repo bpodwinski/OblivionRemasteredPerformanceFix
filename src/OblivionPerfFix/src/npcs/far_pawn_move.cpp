@@ -296,8 +296,22 @@ void TickCommon(void* self, float dt, int tickType, void* tf, bool horseComp)
     orig(self, step, tickType, tf);
 }
 
-void HookTick(void* self, float dt, int tickType, void* tf) { TickCommon(self, dt, tickType, tf, false); }
-void HookTickHorse(void* self, float dt, int tickType, void* tf) { TickCommon(self, dt, tickType, tf, true); }
+thread_local const void* t_ticking = nullptr;  // the movement component whose tick runs on this thread (BodySyncProbe reads it)
+
+void HookTick(void* self, float dt, int tickType, void* tf)
+{
+    const void* const outer = t_ticking;
+    t_ticking = self;
+    TickCommon(self, dt, tickType, tf, false);
+    t_ticking = outer;
+}
+void HookTickHorse(void* self, float dt, int tickType, void* tf)
+{
+    const void* const outer = t_ticking;
+    t_ticking = self;
+    TickCommon(self, dt, tickType, tf, true);
+    t_ticking = outer;
+}
 
 // The offsets the exe's generated property tables give a property name (FGenericPropertyParams: the name pointer first,
 // ArrayDim and Offset as uint16 at +0x30 / +0x32; one entry per class that declares the name).
@@ -498,6 +512,8 @@ void SetFarPawnMove(int mode, int hz, int horseMode)
     g_hz.store(std::clamp(hz, 1, 60), std::memory_order_relaxed);
     g_horseMode.store(std::clamp(horseMode, 0, 2), std::memory_order_relaxed);
 }
+
+const void* FarPawnMoveTicking() { return t_ticking; }
 
 void LogFarPawnMoveStats()
 {
