@@ -12,6 +12,8 @@
     takes the newest UE4SS_v3.0.1-<build>-g<commit>.zip there (never the zDEV- one), checks it against the SHA-256
     GitHub lists for it, and records build and SHA-256 (the report shows them, "tested build" for the 1181 zip this
     benchmark was tested with, otherwise "newer than tested"). Once unpacked, it is kept until -UpdateUE4SS.
+    Since upstream moved "experimental-latest" to v4.0.0 builds (2026-11), the 3.0.1 builds are in its archive release
+    "experimental2": setup looks there when "experimental-latest" has none.
 
   What it needs on the PC: Windows 10/11, Steam with Oblivion Remastered. In a repository checkout without a built hook
   DLL also the free Visual Studio 2022 Build Tools (C++ workload). Nothing is installed system-wide; downloads go to
@@ -62,6 +64,9 @@ $presentMonPin = [pscustomobject]@{
 # UE4SS: the official experimental build, 1181 or newer. 1181 is the build the benchmark mod was tested with.
 $ue4ssRepo = 'UE4SS-RE/RE-UE4SS'
 $ue4ssTag = 'experimental-latest'
+# Upstream's archive of earlier experimental builds: the 3.0.1 builds (1212-1221) since experimental-latest holds v4.0.0
+$ue4ssArchiveTags = @('experimental2')
+$script:ue4ssSourceTag = $ue4ssTag   # the release the zip came from (recorded in oblvbench-build.txt)
 $ue4ssMinBuild = 1181
 $ue4ssTested = @{ Build = 1181; File = 'UE4SS_v3.0.1-1181-g83330635.zip'; Sha256 = 'B9A166A756605B21058A64CDE93BCAAB1A855DBA3553E5C7E6CE0FA8FDFAD7B9'; Size = 8748315 }
 $ue4ssNameRx = '^UE4SS_v3\.0\.1-(\d+)-g[0-9a-f]+\.zip$'
@@ -125,14 +130,22 @@ function Find-UE4SSZip([string]$dir) {
         Where-Object { (Get-UE4SSBuild $_.Name) -ge $ue4ssMinBuild } | Sort-Object { Get-UE4SSBuild $_.Name } -Descending | Select-Object -First 1
 }
 
-<# Downloads the newest official zip from the experimental-latest release into third_party. Returns its path or $null. #>
+<# Downloads the newest official zip from the experimental-latest release (else its archive release) into third_party.
+   Returns its path or $null. #>
 function Get-UE4SSDownload {
     $asset = $null
     try {
-        $rel = Invoke-RestMethod -Uri "https://api.github.com/repos/$ue4ssRepo/releases/tags/$ue4ssTag" -UseBasicParsing -Headers @{ 'User-Agent' = 'OblivionPerfFix-benchmark-setup' }
-        $asset = @($rel.assets | Where-Object { $_.name -match $ue4ssNameRx -and (Get-UE4SSBuild $_.name) -ge $ue4ssMinBuild } |
-                   Sort-Object { Get-UE4SSBuild $_.name } -Descending)[0]
-        if (-not $asset) { $problems.Add("UE4SS: the release $ue4ssTag of $ue4ssRepo has no UE4SS_v3.0.1-<build>-g<commit>.zip of build $ue4ssMinBuild or newer"); return $null }
+        foreach ($tag in @($ue4ssTag) + $ue4ssArchiveTags) {
+            $rel = Invoke-RestMethod -Uri "https://api.github.com/repos/$ue4ssRepo/releases/tags/$tag" -UseBasicParsing -Headers @{ 'User-Agent' = 'OblivionPerfFix-benchmark-setup' }
+            $asset = @($rel.assets | Where-Object { $_.name -match $ue4ssNameRx -and (Get-UE4SSBuild $_.name) -ge $ue4ssMinBuild } |
+                       Sort-Object { Get-UE4SSBuild $_.name } -Descending)[0]
+            if ($asset) {
+                $script:ue4ssSourceTag = $tag
+                if ($tag -ne $ue4ssTag) { Say "  note  $ue4ssTag has no UE4SS_v3.0.1 build $ue4ssMinBuild or newer; using upstream's archive release $tag" }
+                break
+            }
+        }
+        if (-not $asset) { $problems.Add("UE4SS: the releases $((@($ue4ssTag) + $ue4ssArchiveTags) -join ', ') of $ue4ssRepo have no UE4SS_v3.0.1-<build>-g<commit>.zip of build $ue4ssMinBuild or newer"); return $null }
     } catch {
         # GitHub's API unreachable or rate-limited: try the tested zip's own address (it is gone once upstream replaced it)
         Say "  GitHub's release list not readable ($($_.Exception.Message)); trying the tested build's address"
@@ -146,7 +159,7 @@ function Get-UE4SSDownload {
     $tmp = "$dest.download"
     Say "  get   $url ($([math]::Round([double]$asset.size / 1MB, 1)) MB)"
     try { Invoke-WebRequest -Uri $url -OutFile $tmp -UseBasicParsing }
-    catch { $problems.Add("UE4SS: download failed ($($_.Exception.Message)). Download $($asset.name) from https://github.com/$ue4ssRepo/releases/tag/$ue4ssTag into your Downloads folder and run this again"); return $null }
+    catch { $problems.Add("UE4SS: download failed ($($_.Exception.Message)). Download $($asset.name) from https://github.com/$ue4ssRepo/releases/tag/$($script:ue4ssSourceTag) into your Downloads folder and run this again"); return $null }
     $hash = (Get-FileHash -LiteralPath $tmp -Algorithm SHA256).Hash
     $want = if ("$($asset.digest)" -match '^sha256:([0-9a-fA-F]{64})$') { $Matches[1].ToUpper() } else { $null }
     if ($want -and $hash -ne $want) {
@@ -178,29 +191,31 @@ $ue4ssMark = Join-Path $ue4ssDir 'oblvbench-build.txt'
 $haveBuild = if (Test-Path -LiteralPath $ue4ssMark) { (Get-Content -LiteralPath $ue4ssMark -TotalCount 1).Trim() }
              elseif (Test-Path -LiteralPath (Join-Path $ue4ssDir 'dwmapi.dll')) { 'an older build (no oblvbench-build.txt)' } else { $null }
 $haveOk = $haveBuild -and ((Get-UE4SSBuild "$haveBuild.zip") -ge $ue4ssMinBuild -or ($AllowOtherUE4SS -and $haveBuild -notlike 'an older*'))
-$ue4ssZip = $null
+# The zip to unpack. Not named $ue4ssZip: PowerShell variable names ignore case, so that name would be the -UE4SSZip
+# parameter itself, and clearing it here made -UE4SSZip (and $env:OBLIVION_UE4SS_ZIP) do nothing.
+$zipToUnpack = $null
 if ($UE4SSZip) {
     if (-not (Test-Path -LiteralPath $UE4SSZip)) { $problems.Add("UE4SS: $UE4SSZip does not exist") }
     elseif ((Get-UE4SSBuild (Split-Path $UE4SSZip -Leaf)) -lt $ue4ssMinBuild -and -not $AllowOtherUE4SS) {
         $problems.Add("UE4SS: $(Split-Path $UE4SSZip -Leaf) is not an official build $ue4ssMinBuild or newer (UE4SS_v3.0.1-<build>-g<commit>.zip); -AllowOtherUE4SS accepts it anyway")
-    } else { $ue4ssZip = (Resolve-Path -LiteralPath $UE4SSZip).Path }
+    } else { $zipToUnpack = (Resolve-Path -LiteralPath $UE4SSZip).Path }
 } elseif ($haveOk -and -not $UpdateUE4SS) {
     Say "  ok    already unpacked ($haveBuild)"
 } else {
     $found = Find-UE4SSZip $third
     $dl = Find-UE4SSZip (Get-DownloadsDir)
     if ($dl -and (-not $found -or (Get-UE4SSBuild $dl.Name) -gt (Get-UE4SSBuild $found.Name))) { Say "  found $($dl.FullName)"; $found = $dl }
-    if ($found -and -not $UpdateUE4SS) { $ue4ssZip = $found.FullName }
+    if ($found -and -not $UpdateUE4SS) { $zipToUnpack = $found.FullName }
     elseif ($Check) { $problems.Add($(if ($found) { "UE4SS: $($found.Name) found; -UpdateUE4SS would look for a newer one" } else { "UE4SS is not there yet (setup downloads the newest official build from github.com/$ue4ssRepo)" })) }
-    elseif ($Offline) { if ($found) { $ue4ssZip = $found.FullName } else { $problems.Add('UE4SS: no UE4SS_v3.0.1-*.zip (build 1181 or newer) in third_party or Downloads, and -Offline was given') } }
+    elseif ($Offline) { if ($found) { $zipToUnpack = $found.FullName } else { $problems.Add('UE4SS: no UE4SS_v3.0.1-*.zip (build 1181 or newer) in third_party or Downloads, and -Offline was given') } }
     else {
-        $ue4ssZip = Get-UE4SSDownload
-        if (-not $ue4ssZip -and $found) { $ue4ssZip = $found.FullName }
+        $zipToUnpack = Get-UE4SSDownload
+        if (-not $zipToUnpack -and $found) { $zipToUnpack = $found.FullName }
     }
 }
-if ($ue4ssZip) {
-    $wantBuild = [IO.Path]::GetFileNameWithoutExtension($ue4ssZip)
-    $hash = (Get-FileHash -LiteralPath $ue4ssZip -Algorithm SHA256).Hash
+if ($zipToUnpack) {
+    $wantBuild = [IO.Path]::GetFileNameWithoutExtension($zipToUnpack)
+    $hash = (Get-FileHash -LiteralPath $zipToUnpack -Algorithm SHA256).Hash
     $tested = if ($hash -eq $ue4ssTested.Sha256) { 'tested build' } else { 'newer than tested' }
     if ((Get-UE4SSBuild "$wantBuild.zip") -lt $ue4ssMinBuild) { $tested = 'not an official build 1181 or newer: untested' }
     if ($haveBuild -eq $wantBuild -and -not $UpdateUE4SS) { Say "  ok    already unpacked ($haveBuild)" }
@@ -213,12 +228,12 @@ if ($ue4ssZip) {
             Say "  moved the previous copy ($haveBuild) to $old"
         }
         Add-Type -AssemblyName System.IO.Compression.FileSystem
-        [IO.Compression.ZipFile]::ExtractToDirectory($ue4ssZip, $ue4ssDir)
-        if ((Split-Path $ue4ssZip) -ne $third) { Copy-Item -LiteralPath $ue4ssZip -Destination $third -Force }
+        [IO.Compression.ZipFile]::ExtractToDirectory($zipToUnpack, $ue4ssDir)
+        if ((Split-Path $zipToUnpack) -ne $third) { Copy-Item -LiteralPath $zipToUnpack -Destination $third -Force }
         Say "  ok    unpacked $wantBuild ($tested; SHA-256 $hash)"
     }
     if (-not $Check -and (Test-Path -LiteralPath $ue4ssDir)) {
-        $mark = @($wantBuild, "sha256=$hash", "tested=$tested", "source=https://github.com/$ue4ssRepo/releases/tag/$ue4ssTag")
+        $mark = @($wantBuild, "sha256=$hash", "tested=$tested", "source=https://github.com/$ue4ssRepo/releases/tag/$($script:ue4ssSourceTag)")
         if ((Test-Path -LiteralPath $ue4ssMark) -and ((Get-Content -LiteralPath $ue4ssMark) -join '|') -eq ($mark -join '|')) { } else { Set-Content -LiteralPath $ue4ssMark $mark -Encoding ascii }
     }
     if ($tested -ne 'tested build') { Say "  NOTE  $wantBuild is $tested with the benchmark mod (tested: $($ue4ssTested.File)); the report says so" }
