@@ -3673,13 +3673,14 @@ int wmain(int argc, wchar_t** argv)
         // PerceptionLosPrefetch (fork): the perception round, its line-of-sight call site and the helper found and checked
         // (discovery only; no writes); then the batch and the serve with a fake helper and fake pawns
         {
-            uint32_t rr = 0, rc = 0, rh = 0;
-            const char* why = PerceptionLosTestDiscover(game, &rr, &rc, &rh);
+            uint32_t rr = 0, rc = 0, rh = 0, rf = 0;
+            const char* why = PerceptionLosTestDiscover(game, &rr, &rc, &rh, &rf);
             if (why) printf("      perclos: %s\n", why);
             Check(!why, "perclos: the perception round, its line-of-sight call site and the helper found and checked");
             Check(rr == 0x485FAF4, "perclos: the perception round's list and settings calls at exe+0x485FAF4");
             Check(rc == 0x485FCDC, "perclos: the line-of-sight call site at exe+0x485FCDC");
             Check(rh == 0x485A170, "perclos: the line-of-sight helper at exe+0x485A170");
+            Check(rf == 0x485A900, "perclos: the field-of-view filter (its getter, acos call and end checked) at exe+0x485A900");
 
             // fake class {chain at +0x30 -> [cls+0x30 at depth 1], depth +0x38 = 1}; pawns of 0x800 bytes: class +0x10,
             // paired +0x7B8 (-> +0x120 non-zero), root +0x1A0 (-> location doubles at +0x280)
@@ -3734,7 +3735,7 @@ int wmain(int argc, wchar_t** argv)
             void* fc = reinterpret_cast<void*>(static_cast<const uint8_t* (*)()>(fakeClass));
             uint64_t s0, v0, d0, f0, j0, s1, v1, d1, f1, j1;
             // on, 2 helper threads: pawns 1..3 precomputed (the NPC itself, the far pawn and the other class are not)
-            PerceptionLosTestSetup(fh, fc, 1.0f, 1, 2, 2);
+            PerceptionLosTestSetup(fh, fc, nullptr, 1.0f, 1, 2, 2);
             PerceptionLosTestCounts(&s0, &v0, &d0, &f0, &j0);
             helperCalls = 0;
             PerceptionLosTestPrefetch(pawns[0], list, settings);
@@ -3762,7 +3763,7 @@ int wmain(int argc, wchar_t** argv)
             PerceptionLosTestCounts(&s1, &v1, &d1, &f1, &j1);
             Check(s1 == s0 + 3 && f1 == f0 + 5, "perclos on: a repeat, other tries, another NPC or another result byte run the game's helper");
             // too few pawns in range for a batch: nothing precomputed, every call runs the helper
-            PerceptionLosTestSetup(fh, fc, 1.0f, 1, 4, 2);
+            PerceptionLosTestSetup(fh, fc, nullptr, 1.0f, 1, 4, 2);
             PerceptionLosTestPrefetch(pawns[0], list, settings);
             uint8_t o6 = 3;
             PerceptionLosTestCall(pawns[0], pawns[1], &o6, 3, 1);
@@ -3770,7 +3771,7 @@ int wmain(int argc, wchar_t** argv)
             PerceptionLosTestCounts(&s2, nullptr, nullptr, &f2, &j2);
             Check(j2 == j1 && s2 == s1 && f2 == f1 + 1, "perclos: below PerceptionLosPrefetchMin no batch, the game's helper runs");
             // verify: the game's helper runs, its answer is kept and compared (the salt makes pawn 2 differ)
-            PerceptionLosTestSetup(fh, fc, 1.0f, 2, 2, 2);
+            PerceptionLosTestSetup(fh, fc, nullptr, 1.0f, 2, 2, 2);
             PerceptionLosTestPrefetch(pawns[0], list, settings);
             salt = 0;
             uint8_t ov1 = 3;
@@ -3784,7 +3785,7 @@ int wmain(int argc, wchar_t** argv)
             Check(rv1 == 1 && s3 == s2 && v3 == v1 + 2 && d3 == d1 + 1 && ov2 >= 4,
                   "perclos verify: the game's helper runs, its answer is kept, a different answer is counted");
             // off: nothing precomputed, every call runs the helper
-            PerceptionLosTestSetup(fh, fc, 1.0f, 0, 2, 2);
+            PerceptionLosTestSetup(fh, fc, nullptr, 1.0f, 0, 2, 2);
             uint64_t j4;
             PerceptionLosTestCounts(nullptr, nullptr, nullptr, nullptr, &j4);
             PerceptionLosTestPrefetch(pawns[0], list, settings);
@@ -3793,6 +3794,154 @@ int wmain(int argc, wchar_t** argv)
             uint64_t s5, j5;
             PerceptionLosTestCounts(&s5, nullptr, nullptr, nullptr, &j5);
             Check(j5 == j4 && s5 == s3, "perclos off: nothing precomputed or served");
+            // the field-of-view filter: when the NPC's vtable slot +0xA90 holds it, a pawn out of view (here pawn 2) is not
+            // precomputed, and the loop's helper call for it (if any) runs the game's helper; another filter: all precomputed
+            alignas(16) static uint8_t fakeVt[0xB00] = {};
+            auto fakeFov = [](uint8_t*, uint8_t* o) -> uint8_t { return o != pawns[2]; };
+            void* ff = reinterpret_cast<void*>(static_cast<uint8_t (*)(uint8_t*, uint8_t*)>(fakeFov));
+            memcpy(fakeVt + 0xA90, &ff, 8);
+            const uint8_t* fvt = fakeVt;
+            memcpy(pawns[0], &fvt, 8);
+            PerceptionLosTestSetup(fh, fc, ff, 1.0f, 1, 2, 2);
+            uint64_t j6, j7, s6, s7, f6, f7;
+            PerceptionLosTestCounts(&s6, nullptr, nullptr, &f6, &j6);
+            helperCalls = 0;
+            PerceptionLosTestPrefetch(pawns[0], list, settings);
+            uint8_t o8 = 3, o9 = 3;
+            PerceptionLosTestCall(pawns[0], pawns[1], &o8, 3, 1);
+            PerceptionLosTestCall(pawns[0], pawns[2], &o9, 3, 1);
+            PerceptionLosTestCounts(&s7, nullptr, nullptr, &f7, &j7);
+            Check(j7 == j6 + 2 && s7 == s6 + 1 && f7 == f6 + 1 && helperCalls == 3,
+                  "perclos field of view: a pawn out of view is not precomputed (its call runs the game's helper)");
+            static uint8_t otherFilter = 0;
+            PerceptionLosTestSetup(fh, fc, &otherFilter, 1.0f, 1, 2, 2);
+            PerceptionLosTestCounts(nullptr, nullptr, nullptr, nullptr, &j6);
+            PerceptionLosTestPrefetch(pawns[0], list, settings);
+            PerceptionLosTestCounts(nullptr, nullptr, nullptr, nullptr, &j7);
+            uint64_t f8, f9;
+            PerceptionLosTestCounts(nullptr, nullptr, nullptr, &f8, nullptr);
+            uint8_t o10 = 3;
+            PerceptionLosTestCall(pawns[0], pawns[1], &o10, 3, 1);
+            PerceptionLosTestCounts(nullptr, nullptr, nullptr, &f9, nullptr);
+            Check(j7 == j6 && f9 == f8 + 1,
+                  "perclos field of view: a round with another filter is not precomputed (its calls run the game's helper)");
+            memset(pawns[0], 0, 8);
+            // the overlap: the batch is dispatched, the loop's calls wait only for their own answer, the round-end join closes it
+            Check(PerceptionLosTestJoinSite(game) == 0x485FDF0, "perclos: the round-end join's call site (the loop's exit) at exe+0x485FDF0");
+            PerceptionLosTestSetup(fh, fc, nullptr, 1.0f, 1, 2, 2);
+            PerceptionLosTestSetOverlap(true);
+            uint64_t s10, s11, j10, j11;
+            PerceptionLosTestCounts(&s10, nullptr, nullptr, nullptr, &j10);
+            PerceptionLosTestPrefetch(pawns[0], list, settings);
+            bool sameOv = true;
+            for (int k : {1, 2, 3}) {
+                uint8_t out = 3, ref = 3;
+                const uint8_t r = PerceptionLosTestCall(pawns[0], pawns[k], &out, 3, 1);
+                const uint8_t rref = fakeHelper(pawns[0], pawns[k], &ref, 3, 1);
+                sameOv = sameOv && r == rref && out == ref;
+            }
+            const bool open1 = PerceptionLosTestJoin(), open2 = PerceptionLosTestJoin();
+            PerceptionLosTestCounts(&s11, nullptr, nullptr, nullptr, &j11);
+            Check(sameOv && open1 && !open2 && s11 == s10 + 3 && j11 == j10 + 3,
+                  "perclos overlap: answers served bit for bit while the batch runs, the round-end join closes it once");
+            // a round whose join never came: the next round's start closes the open batch first
+            PerceptionLosTestPrefetch(pawns[0], list, settings);
+            PerceptionLosTestPrefetch(pawns[0], list, settings);
+            const bool open3 = PerceptionLosTestJoin(), open4 = PerceptionLosTestJoin();
+            Check(open3 && !open4, "perclos overlap: no batch outlives the next round's start");
+            // the ignore-list cache: the helper's two NPC gathers (exe+0x485A260 attached, exe+0x485A2AF child) get a copy of
+            // the lists gathered once at the round's start; the other pawn's gathers and any gather after the join run the
+            // game's function; verify (mode 2) runs it and compares
+            {
+                uint32_t ga = 0, gc = 0;
+                PerceptionLosTestGatherSites(game, &ga, &gc);
+                Check(ga == 0x485A260 && gc == 0x485A2AF, "perclos cache: the helper's NPC gathers at exe+0x485A260 and exe+0x485A2AF");
+                struct Arr { void** data; int32_t num, max; };
+                static int attCalls = 0, childCalls = 0;
+                auto fakeMalloc = [](size_t n, uint32_t) -> void* { return malloc(n); };
+                auto put = [](Arr* out, std::initializer_list<void*> items) {
+                    const int n = out->num + static_cast<int>(items.size());
+                    out->data = static_cast<void**>(realloc(out->data, static_cast<size_t>(n) * sizeof(void*)));
+                    for (void* it : items) out->data[out->num++] = it;
+                    out->max = n;
+                };
+                static void (*s_put)(Arr*, std::initializer_list<void*>) = nullptr;
+                s_put = put;
+                auto fakeAtt = [](uint8_t* a, void* o, uint8_t) {
+                    ++attCalls;
+                    s_put(static_cast<Arr*>(o), {a + 1, a + 2});
+                };
+                auto fakeChild = [](uint8_t* a, void* o, uint8_t, uint8_t) {
+                    ++childCalls;
+                    static_cast<Arr*>(o)->num = 0;
+                    s_put(static_cast<Arr*>(o), {a + 3});
+                };
+                void* fa = reinterpret_cast<void*>(static_cast<void (*)(uint8_t*, void*, uint8_t)>(fakeAtt));
+                void* fch = reinterpret_cast<void*>(static_cast<void (*)(uint8_t*, void*, uint8_t, uint8_t)>(fakeChild));
+                void* fm = reinterpret_cast<void*>(static_cast<void* (*)(size_t, uint32_t)>(fakeMalloc));
+                PerceptionLosTestSetCache(fa, fch, fm, true);
+                PerceptionLosTestSetup(fh, fc, nullptr, 1.0f, 1, 2, 2);
+                uint64_t cs0, cv0, cd0, cs1, cv1, cd1;
+                PerceptionLosTestCacheCounts(&cs0, &cv0, &cd0);
+                attCalls = childCalls = 0;
+                PerceptionLosTestPrefetch(pawns[0], list, settings);
+                const bool built = attCalls == 1 && childCalls == 1;
+                Arr a1{}, c1{}, a2{}, a3{};
+                PerceptionLosTestGather(pawns[0], &a1, false);
+                PerceptionLosTestGather(pawns[0], &c1, true);
+                PerceptionLosTestGather(pawns[1], &a2, false);
+                PerceptionLosTestCacheCounts(&cs1, &cv1, &cd1);
+                Check(built && attCalls == 2 && childCalls == 1 && cs1 == cs0 + 2 && a1.num == 2 && a1.data[0] == pawns[0] + 1 &&
+                          a1.data[1] == pawns[0] + 2 && c1.num == 1 && c1.data[0] == pawns[0] + 3 && a2.num == 2 && a2.data[0] == pawns[1] + 1,
+                      "perclos cache: the NPC's gathers are copies of the round's lists, the other pawn's run the game's function");
+                PerceptionLosTestJoin();
+                PerceptionLosTestGather(pawns[0], &a3, false);
+                Check(attCalls == 3 && a3.num == 2, "perclos cache: after the round's join the NPC's gather runs the game's function");
+                // verify: the game's function runs and is compared (same lists: no difference)
+                PerceptionLosTestSetup(fh, fc, nullptr, 1.0f, 2, 2, 2);
+                PerceptionLosTestPrefetch(pawns[0], list, settings);
+                Arr a4{};
+                PerceptionLosTestGather(pawns[0], &a4, false);
+                uint64_t cs2, cv2, cd2;
+                PerceptionLosTestCacheCounts(&cs2, &cv2, &cd2);
+                PerceptionLosTestJoin();
+                Check(attCalls == 5 && cv2 == cv1 + 1 && cd2 == cd1 && cs2 == cs1 && a4.num == 2,
+                      "perclos cache verify: the game's gather runs and matches the round's copy");
+                for (Arr* x : {&a1, &c1, &a2, &a3, &a4}) free(x->data);
+                PerceptionLosTestSetCache(nullptr, nullptr, nullptr, false);
+            }
+            // cross-round (experimental): NPCs 0 and 1 run a round each frame, 60 ms apart; in the third frame NPC 0's round
+            // also precomputes NPC 1 (expected in that frame), whose round then serves from that batch; the next frame starts anew
+            {
+                static uint64_t fr = 1;
+                auto frameFn = []() -> uint64_t { return fr; };
+                PerceptionLosTestSetup(fh, fc, nullptr, 1.0f, 1, 1, 2);
+                PerceptionLosTestSetCross(true, static_cast<uint64_t (*)()>(frameFn));
+                uint64_t cn0, cr0, cs0x, cn1, cr1, cs1x, cn2, cr2, cs2x;
+                PerceptionLosTestCrossCounts(&cn0, &cr0, &cs0x);
+                for (fr = 1; fr <= 2; ++fr) {
+                    PerceptionLosTestPrefetch(pawns[0], list, settings);
+                    PerceptionLosTestPrefetch(pawns[1], list, settings);
+                    Sleep(60);
+                }
+                PerceptionLosTestCrossCounts(&cn1, &cr1, &cs1x);
+                fr = 3;
+                PerceptionLosTestPrefetch(pawns[0], list, settings);
+                PerceptionLosTestPrefetch(pawns[1], list, settings);
+                uint8_t ox = 3, rx = 3;
+                const uint8_t r = PerceptionLosTestCall(pawns[1], pawns[2], &ox, 3, 1);
+                const uint8_t rr2 = fakeHelper(pawns[1], pawns[2], &rx, 3, 1);
+                PerceptionLosTestCrossCounts(&cn2, &cr2, &cs2x);
+                Check(cn2 >= cn1 + 1 && cr2 == cr1 + 1 && cs2x == cs1x + 1 && r == rr2 && ox == rx,
+                      "perclos cross-round: an NPC expected later in the frame is precomputed and its round served from that batch");
+                fr = 4;
+                PerceptionLosTestPrefetch(pawns[1], list, settings);
+                uint64_t cn3, cr3, cs3x;
+                PerceptionLosTestCrossCounts(&cn3, &cr3, &cs3x);
+                Check(cr3 == cr2, "perclos cross-round: a new frame does not take an older frame's batch");
+                PerceptionLosTestSetCross(false, nullptr);
+            }
+            PerceptionLosTestSetOverlap(false);
         }
         // RigTraceReuse (public since 1.2.3, corral2): the sphere-trace rig unit and UControlRig::Execute found once by pattern
         // (discovery only; no writes); the lab's second world-trace unit (RigTraceReuse2)

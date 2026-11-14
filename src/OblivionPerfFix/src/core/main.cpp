@@ -192,7 +192,7 @@ DWORD WINAPI MonitorThread(LPVOID)
         if (g_physAnimHooked) SetPhysAnimNoEmptyLock(cfg.physAnimNoEmptyLock);
         SetRigTraceReuse(cfg.rigTraceReuse);  // RigTraceReuse: no-op unless installed at start-up
         SetRigImportTemplate(cfg.rigImportTemplate);  // RigImportTemplate: no-op unless installed at start-up
-        SetPerceptionLosPrefetch(cfg.perceptionLosPrefetch, cfg.perceptionLosPrefetchMin, ParallelHelpersAllowed(cfg));  // no-op unless installed
+        SetPerceptionLosPrefetch(cfg.perceptionLosPrefetch, cfg.perceptionLosPrefetchMin, ParallelHelpersAllowed(cfg), cfg.perceptionLosPrefetchOverlap, cfg.perceptionLosIgnoreCache, cfg.perceptionLosCrossRound);  // no-op unless installed
         SetFarPawnMove(cfg.farPawnMoveHalfRate, cfg.farPawnMoveHz, cfg.farHorseMove);  // FarPawnMove: no effect unless installed
         SetCreatePreload(cfg.createPreload);          // CreatePreload: no effect unless installed at start-up
         SetCreatePreloadNear(cfg.createPreloadNear);
@@ -889,7 +889,7 @@ void Init(const char* loadedVia, bool proxyOk, bool beforeGameCode)
     // game's code runs (version.dll route), installed only if not 0 at start-up, then live.
     if (cfg.perceptionLosPrefetch != 0) {
         if (InstallPerceptionLosPrefetch(beforeGameCode, cfg.perceptionLosPrefetchThreads))
-            SetPerceptionLosPrefetch(cfg.perceptionLosPrefetch, cfg.perceptionLosPrefetchMin, ParallelHelpersAllowed(cfg));
+            SetPerceptionLosPrefetch(cfg.perceptionLosPrefetch, cfg.perceptionLosPrefetchMin, ParallelHelpersAllowed(cfg), cfg.perceptionLosPrefetchOverlap, cfg.perceptionLosIgnoreCache, cfg.perceptionLosCrossRound);
     } else Log("[perclos] PerceptionLosPrefetch off in OblivionPerfFix.ini (takes a restart to switch on)");
     // RigImportTemplate (Altar's Control Rig: the first bone import of a new rig): the RemoveElement guard, then entry detours
     // of the node's CacheBones and ImportBones; written only before the game's code runs (version.dll route), installed only if

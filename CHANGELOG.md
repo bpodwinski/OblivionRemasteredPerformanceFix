@@ -10,10 +10,15 @@ Bug fixes say whose bug it was: **game bug** = also happens without OblivionPerf
 driver library); **our bug** = caused by an earlier version of OblivionPerfFix.
 
 ## Unreleased
-- **New, off by default: `PerceptionLosPrefetch`** (fork, not measured yet). A character's perception round checks the
-  line of sight to each character near it (up to three sight lines per pair) on the game's main thread; this works the
-  round's sight lines out on helper threads first and hands each answer to the game's own loop in its own order.
+- **New, off by default: `PerceptionLosPrefetch`** (fork). A character's perception round checks the line of sight to
+  each character in front of it and in range (up to three sight lines per pair) on the game's main thread; this works the
+  round's sight lines out on 4 helper threads first (asking the game's own field-of-view test, so nothing is traced for
+  nothing) and hands each answer to the game's own loop in its own order, the loop starting before all are done.
   `PerceptionLosPrefetch=2` checks only (the game's check runs too; differences are counted in the `[perclos]` line).
+  Ours, one PC (5800X3D, RTX 5080), small window, A-B-B-A twice in one game: a soldier's perception round 400-450 ->
+  135-150 us in a 40-soldier crowd, 750-900 -> 205-230 us in a battle, battle +12 % fps; 0 differences in over 1.1
+  million checked sight lines. Hidden, off: `PerceptionLosIgnoreCache` (within noise), `PerceptionLosCrossRound`
+  (slower).
 - Benchmark setup: `-UE4SSZip` works again (a variable of the same name cleared it), the UE4SS 3.0.1 builds are taken from
   upstream's archive release now that `experimental-latest` holds v4.0.0, and `Find-VCVars.ps1` honours `OPF_VCVARS` and
   finds a preview / Insiders Visual Studio.
