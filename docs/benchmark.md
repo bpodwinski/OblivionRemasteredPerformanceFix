@@ -213,11 +213,18 @@ tools\Run-Benchmark.ps1 -Label st -Scenes inn-door -Pass perf -Stacks GameThread
 tools\Analyze-Hitch.ps1 -Run st -Segment inn-door/exit -MinMs 50      # per slow frame: what each sampled thread was in
 tools\Sample-Timeline.ps1 -OutPrefix captures\t1 -Seconds 10          # the sampler alone, on a running game
 ```
-- `-Stacks <threads>` samples those threads during door legs, flights and walks into `stacks\<scene>-timeline.csv`
-  (time, thread, stack index) and `stacks\<scene>-stacks.txt` (one collapsed stack per line, root first, frames as
-  `module+0xFUNCSTART`). Thread names may use wildcards (`'*Worker*'`).
+- `-Stacks <threads>` samples those threads during door legs, flights, walks and static scenes (from the end of the
+  settle to the end of the measured part) into `stacks\<scene>-timeline.csv` (time, thread, stack index) and
+  `stacks\<scene>-stacks.txt` (one collapsed stack per line, root first, frames as `module+0xFUNCSTART`). Thread names
+  may use wildcards (`'*Worker*'`).
 - `-StackSampler fast -StackIntervalMs 2` uses `tools\FastSampler.cs` (its own x64 unwinder, ~30 us per thread sample)
-  instead of dbghelp (`tools\StackSampler.cs`, ~1 ms or more), so the workers can be sampled too.
+  instead of dbghelp (`tools\StackSampler.cs`, ~1 ms or more), so the workers can be sampled too. It also writes
+  `stacks\<scene>-leafrip.csv` (thread, module, rva, samples): an instruction-level profile of where each thread was
+  stopped, to see which instruction of a hot function costs (often the one right after a load that missed the cache).
+- `py -3 tools\pair_stacks.py <run folder>` (a run with `-Stacks GameThread,OblivionThread`, best with `-StackSampler fast
+  -StackIntervalMs 1`): the game thread's wait for the old engine ("pair") split into waiting and running the old
+  engine's commands, side by side with what the OblivionThread does meanwhile (inclusive, innermost function, innermost
+  paths). The pairing addresses in it are build 19115871's.
 - Sampling suspends each thread for a moment: a `-Stacks` run's fps and frame times are not comparable with other runs.
 - `Analyze-Hitch.ps1` names functions from `tools\symbols.csv` (`rva,name,note`) when that file is there; without it the
   frames stay `exe+0x...`.

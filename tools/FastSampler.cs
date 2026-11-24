@@ -36,6 +36,7 @@ public static class FastSampler
         public List<int> SampleThread = new List<int>();
         public List<int> SampleStack = new List<int>();
         public List<string> StackList = new List<string>();
+        public Dictionary<string, int> LeafRips = new Dictionary<string, int>();   // "<thread>,<module>,<rva hex>" -> samples (instruction-level profile)
     }
 
     class Mod { public ulong Base, End; public string Name; public uint[] B, E, U; }
@@ -348,6 +349,11 @@ public static class FastSampler
                         // CONTEXT: Rax 0x78, Rcx 0x80, Rdx 0x88, Rbx 0x90, Rsp 0x98, Rbp 0xA0, Rsi 0xA8, Rdi 0xB0, R8..R15 0xB8.., Rip 0xF8
                         for (int k = 0; k < 16; k++) R[k] = (ulong)Marshal.ReadInt64(ctx, 0x78 + k * 8);
                         ulong rip = (ulong)Marshal.ReadInt64(ctx, 0xF8);
+                        {
+                            Mod lm = FindMod(rip);
+                            string lk = tidNames[t] + "," + (lm != null ? lm.Name + "," + (rip - lm.Base).ToString("X") : "?," + rip.ToString("X"));
+                            int lc; res.LeafRips.TryGetValue(lk, out lc); res.LeafRips[lk] = lc + 1;
+                        }
                         stackBase = sbase[t];
                         bool leaf = true;
                         for (int h = 0; h < hintLo.Length; h++)

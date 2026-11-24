@@ -72,5 +72,8 @@ for ($i = 0; $i -lt $r.SampleMs.Count; $i++) {
 }
 [IO.File]::WriteAllText("$OutPrefix-timeline.csv", $sb.ToString())
 [IO.File]::WriteAllLines("$OutPrefix-stacks.txt", [string[]]$r.StackList)
+if ($Sampler -eq 'fast') {   # instruction-level leaf profile: thread, module, rva, samples
+    [IO.File]::WriteAllLines("$OutPrefix-leafrip.csv", [string[]](@('Thread,Module,Rva,Samples') + @($r.LeafRips.GetEnumerator() | Sort-Object Value -Descending | ForEach-Object { "$($_.Key),$($_.Value)" })))
+}
 "{0} samples of {1} in {2:N1} s ({3:N0}/s per thread), {4} failed -> {5}-timeline.csv" -f $r.Samples, ($targets.Name -join ', '), $r.Seconds, ($r.Samples / $r.Seconds / $targets.Count), $r.Failed, $OutPrefix
 if ($Sampler -eq 'fast') { "fast sampler: {0:N0} us per thread sample (suspended + unwound), {1} walks stopped early" -f $r.SuspendUsAvg, $r.Truncated }

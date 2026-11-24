@@ -1622,10 +1622,17 @@ function Invoke-Session([string]$kind, [string]$runDir, [object[]]$sceneList, [i
                             Wait-Game 2; $r = Send-Bench "aim $aim front" -NoThrow; if ($r) { Step "  $r" }
                             Wait-Game 1.5; $r = Send-Bench "aim $aim" -NoThrow; if ($r) { Step "  $r" }
                         }
+                        $measure = [double](Opt $scene 'measure' $scn.defaults.measure)
+                        $stackProc = $null
+                        if ($Stacks) {   # started during the settle (compiling and attaching take a few seconds), sampling covers the measured part
+                            $stackProc = Start-Process powershell -PassThru -WindowStyle Hidden -ArgumentList @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File',
+                                "`"$(Join-Path $PSScriptRoot 'Sample-Timeline.ps1')`"", '-OutPrefix', "`"$(Join-Path $runDir ('stacks\' + $scene.id))`"", '-Seconds', ([math]::Max(0, $settle - 5) + $measure + 6), '-Threads', "`"$($Stacks -join ',')`"", '-Sampler', $StackSampler, '-IntervalMs', $StackIntervalMs)
+                        }
                         Wait-Game $settle
                         $t0 = Get-QpcMs
-                        Wait-Game ([double](Opt $scene 'measure' $scn.defaults.measure))
+                        Wait-Game $measure
                         $t1 = Get-QpcMs
+                        if ($stackProc -and -not $stackProc.WaitForExit(60000)) { $stackProc.Kill(); Warn "$($scene.id): the stack sampler did not finish" }
                         if ($aim) {   # characters walk about: stand in front of it again, then look at its head
                             $r = Send-Bench "aim $aim front" -NoThrow; if ($r) { Step "  $r" }
                             Wait-Game 1.5; $r = Send-Bench "aim $aim" -NoThrow; if ($r) { Step "  $r" }; Wait-Game 0.5
