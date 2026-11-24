@@ -232,6 +232,7 @@ std::atomic<int> g_perFrame{500}, g_maxFrames{30}, g_min{1}, g_nearM{kNearDefaul
 double g_qpcMs = 0;
 
 thread_local int t_inRemoval = 0;
+uint8_t* g_unregStub = nullptr;  // the stub RemoveFromWorld's unregister call jumps to once patched (nullptr: not patched)
 
 struct Batch {
     uint8_t* comp = nullptr;
@@ -1304,11 +1305,16 @@ bool Install(const GameModule& game, const char** why)
     }
     if (!WriteCode(sites[2] + 1, std::span<const uint8_t>(reinterpret_cast<const uint8_t*>(&rel[2]), 4))) { *why = "could not patch DestroySolver's call"; return false; }
     if (!WriteCode(sites[1] + 1, std::span<const uint8_t>(reinterpret_cast<const uint8_t*>(&rel[1]), 4))) { *why = "could not patch the unregister call"; return false; }
+    g_unregStub = mem + kStub;  // StreamOutEndPlaySlice chains its own call-site stub onto this one
     if (!WriteCode(sites[0] + 1, std::span<const uint8_t>(reinterpret_cast<const uint8_t*>(&rel[0]), 4))) { *why = "could not patch the clear call"; return false; }
     return true;
 }
 
 }  // namespace
+
+// The stub RemoveFromWorld's incremental unregister call was patched to (nullptr when it was not): StreamOutEndPlaySlice
+// (streaming/endplay_slice.cpp) accepts it as that call's target and calls it as the next link.
+const uint8_t* BodyRemovalSpreadUnregStub() { return g_unregStub; }
 
 // Start-up (version.dll route): the hooks, installed when the key is != 0 (lab: always) and NpcCreationPacing's frame
 // hooks are in (frameHooks); then SetBodyRemovalSpread switches it live.
@@ -1318,7 +1324,7 @@ bool InstallBodyRemovalSpread(bool beforeGameCode, int key, int perFrame, int ma
     (void)iniPath;
     const bool install = key != 0;
     if (!install) { Log("[bodyspread] BodyRemovalSpread off in OblivionPerfFix.ini (takes a restart to switch on)"); return false; }
-    if (!beforeGameCode) { Log("[bodyspread] BodyRemovalSpread: start-up only (version.dll), not installed"); return false; }
+    if (!beforeGameCode) { Log("[bodyspread] BodyRemovalSpread: start-up only (loaded late here), not installed"); return false; }
     if (!frameHooks) {
         Log("[bodyspread] BodyRemovalSpread: needs NpcCreationPacing's frame hooks (NpcCreationPacing=1 at start-up), not installed");
         return false;

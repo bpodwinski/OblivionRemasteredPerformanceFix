@@ -27,6 +27,9 @@ Config LoadConfig(const wchar_t* iniPath)
     c.editorIdLookupGuard = get(L"Fixes", L"NameLookupCrashGuard", c.editorIdLookupGuard) != 0;
     c.trapCrashGuard = get(L"Fixes", L"TrapCrashGuard", c.trapCrashGuard) != 0;
     c.bowSneakAttackFix = get(L"Fixes", L"BowSneakAttackFix", c.bowSneakAttackFix) != 0;
+    c.stuckEffectLookFix = get(L"Fixes", L"StuckEffectLookFix", c.stuckEffectLookFix) != 0;
+    c.worldSoundPositionFix = get(L"Fixes", L"WorldSoundPositionFix", c.worldSoundPositionFix) != 0;
+    c.arrowHitSoundFix = get(L"Fixes", L"ArrowHitSoundFix", c.arrowHitSoundFix) != 0;
     c.pairReleaseOnce = get(L"Fixes", L"PairReleaseOnce", c.pairReleaseOnce);
     c.autosaveFollowsMenu = get(L"Fixes", L"AutosaveFollowsMenu", c.autosaveFollowsMenu) != 0;
     c.saveThumbLeftoverFix = get(L"Fixes", L"SaveThumbLeftoverFix", c.saveThumbLeftoverFix) != 0;
@@ -89,6 +92,9 @@ Config LoadConfig(const wchar_t* iniPath)
     c.bodyRemovalSpreadMin = get(L"Fixes", L"BodyRemovalSpreadMin", c.bodyRemovalSpreadMin);
     c.bodyRemovalSpreadNearM = get(L"Fixes", L"BodyRemovalSpreadNearM", c.bodyRemovalSpreadNearM);
     c.streamRegisterGranularity = get(L"Fixes", L"StreamRegisterGranularity", c.streamRegisterGranularity);
+    c.streamInBudget = get(L"Fixes", L"StreamInBudget", c.streamInBudget);
+    c.navQueryPriority = get(L"Fixes", L"NavQueryPriority", c.navQueryPriority);
+    c.physicsSubstepCap = get(L"Fixes", L"PhysicsSubstepCap", c.physicsSubstepCap);
     c.lumenCardsNarrow = get(L"Fixes", L"LumenCardsNarrow", c.lumenCardsNarrow);
     c.lumenScanCull = get(L"Fixes", L"LumenScanCull", c.lumenScanCull);
     c.repathParallel = get(L"Fixes", L"RepathParallel", c.repathParallel);
@@ -98,8 +104,18 @@ Config LoadConfig(const wchar_t* iniPath)
     c.waterInfoSpreadPerFrame = get(L"Fixes", L"WaterInfoSpreadPerFrame", c.waterInfoSpreadPerFrame);
     c.waterInfoSpreadMaxFrames = get(L"Fixes", L"WaterInfoSpreadMaxFrames", c.waterInfoSpreadMaxFrames);
     c.waterInfoSpreadMergeMs = get(L"Fixes", L"WaterInfoSpreadMergeMs", c.waterInfoSpreadMergeMs);
+    c.waterInfoAfterCrossing = get(L"Fixes", L"WaterInfoAfterCrossing", c.waterInfoAfterCrossing);
+    c.waterInfoAfterCrossingQuietMs = get(L"Fixes", L"WaterInfoAfterCrossingQuietMs", c.waterInfoAfterCrossingQuietMs);
     c.repathParallelMin = get(L"Fixes", L"RepathParallelMin", c.repathParallelMin);
     c.repathParallelThreads = get(L"Fixes", L"RepathParallelThreads", c.repathParallelThreads);
+    c.repathEarly = get(L"Fixes", L"RepathEarly", c.repathEarly);
+    c.repathDefer = get(L"Fixes", L"RepathDefer", c.repathDefer);
+    c.capSleepSkip = get(L"Fixes", L"CapSleepSkip", c.capSleepSkip);
+    c.capSleepSkipMaxMs = get(L"Fixes", L"CapSleepSkipMaxMs", c.capSleepSkipMaxMs);
+    c.capSleepSkipAddBack = get(L"Fixes", L"CapSleepSkipAddBack", c.capSleepSkipAddBack);
+    c.repathDeferGraceUs = get(L"Fixes", L"RepathDeferGraceUs", c.repathDeferGraceUs);
+    c.repathDeferMaxFrames = get(L"Fixes", L"RepathDeferMaxFrames", c.repathDeferMaxFrames);
+    c.repathDeferTolerance = get(L"Fixes", L"RepathDeferTolerance", c.repathDeferTolerance);
     c.farPawnMoveHalfRate = get(L"Fixes", L"FarPawnMoveHalfRate", c.farPawnMoveHalfRate);
     c.farPawnMoveHz = get(L"Fixes", L"FarPawnMoveHz", c.farPawnMoveHz);
     c.farHorseMove = get(L"Fixes", L"FarHorseMove", c.farHorseMove);
@@ -109,6 +125,17 @@ Config LoadConfig(const wchar_t* iniPath)
     c.createPreloadNear = get(L"Fixes", L"CreatePreloadNear", c.createPreloadNear);
     c.otFrameTrim = get(L"Fixes", L"OtFrameTrim", c.otFrameTrim);
     c.looseMissCache = get(L"Fixes", L"LooseMissCache", c.looseMissCache);
+    c.flowOverlapsOnce = get(L"Fixes", L"FlowOverlapsOnce", c.flowOverlapsOnce) == 1 ? 1 : 0;
+    {
+        const int v = get(L"Fixes", L"StartupBarFinish", c.startupBarFinish);
+        c.startupBarFinish = v == 1 || v == 2 ? v : 0;
+    }
+    c.pluginPrefetch = get(L"Fixes", L"PluginPrefetch", c.pluginPrefetch) == 1 ? 1 : 0;
+    {
+        const int v = get(L"Fixes", L"TopicSort", c.topicSort);
+        c.topicSort = v == 1 ? 1 : 0;
+    }
+    c.powerAttackAnimKeep = get(L"Fixes", L"PowerAttackAnimKeep", c.powerAttackAnimKeep) != 0 ? 1 : 0;
     c.instanceBufferFloor = get(L"Fixes", L"InstanceBufferFloor", c.instanceBufferFloor);
     c.npcBodiesOneLock = get(L"Fixes", L"NpcBodiesOneLock", c.npcBodiesOneLock);
     c.clothRegisterLite = get(L"Fixes", L"ClothRegisterLite", c.clothRegisterLite);
@@ -147,8 +174,14 @@ Config LoadConfig(const wchar_t* iniPath)
     c.rigTraceReuse = get(L"Fixes", L"RigTraceReuse", c.rigTraceReuse);
     if (c.rigTraceReuse < 0 || c.rigTraceReuse > 2) c.rigTraceReuse = 1;  // 0 off, 1 on, 2 verify; anything else = on
     c.rigImportTemplate = get(L"Fixes", L"RigImportTemplate", c.rigImportTemplate);  // 0 off, else on (lab: 2 verify)
+    c.perceptionLosPrefetch = get(L"Fixes", L"PerceptionLosPrefetch", c.perceptionLosPrefetch);
+    if (c.perceptionLosPrefetch < 0 || c.perceptionLosPrefetch > 2) c.perceptionLosPrefetch = 0;  // 0 off, 1 on, 2 verify; else off
+    c.perceptionLosPrefetchMin = get(L"Fixes", L"PerceptionLosPrefetchMin", c.perceptionLosPrefetchMin);
+    c.perceptionLosPrefetchThreads = get(L"Fixes", L"PerceptionLosPrefetchThreads", c.perceptionLosPrefetchThreads);
+    c.perceptionLosPrefetchOverlap = get(L"Fixes", L"PerceptionLosPrefetchOverlap", c.perceptionLosPrefetchOverlap) != 0;
     c.chaosMaxPayloadSize = get(L"Fixes", L"ChaosMaxPayloadSize", c.chaosMaxPayloadSize);
     c.osPageCache = get(L"Fixes", L"OsPageCache", c.osPageCache);
+    c.osPageCacheAsyncRelease = get(L"Fixes", L"OsPageCacheAsyncRelease", c.osPageCacheAsyncRelease);
     c.osPageCacheMB = get(L"Fixes", L"OsPageCacheMB", c.osPageCacheMB);
     c.osPageCacheTrimSeconds = get(L"Fixes", L"OsPageCacheTrimSeconds", c.osPageCacheTrimSeconds);
     c.psoPrecompileFast = get(L"Fixes", L"PsoPrecompileFast", c.psoPrecompileFast) != 0;
@@ -158,11 +191,16 @@ Config LoadConfig(const wchar_t* iniPath)
     c.animTeardownParallel = get(L"Fixes", L"AnimTeardownParallel", c.animTeardownParallel);
     c.cellBufferPacedEvict = get(L"Fixes", L"CellBufferPacedEvict", c.cellBufferPacedEvict);
     c.cellBufferEvictDelayMs = get(L"Fixes", L"CellBufferEvictDelayMs", c.cellBufferEvictDelayMs);
+    c.cellEvictSplit = get(L"Fixes", L"CellEvictSplit", c.cellEvictSplit);
     c.physicsPushParallel = get(L"Fixes", L"PhysicsPushParallel", c.physicsPushParallel);
     c.physicsPushMin = get(L"Fixes", L"PhysicsPushMin", c.physicsPushMin);
     c.physicsPushThreads = get(L"Fixes", L"PhysicsPushThreads", c.physicsPushThreads);
     c.pipelinedBodyCreation = get(L"Fixes", L"PipelinedBodyCreation", c.pipelinedBodyCreation) != 0;
     c.gpuSceneParallelUpload = get(L"Fixes", L"GpuSceneParallelUpload", c.gpuSceneParallelUpload) != 0;
+    c.indirectArgBufferPool = get(L"Fixes", L"IndirectArgBufferPool", c.indirectArgBufferPool) != 0 ? 1 : 0;
+    c.parallelFileReads = get(L"Fixes", L"ParallelFileReads", c.parallelFileReads);
+    if (c.parallelFileReads < 0) c.parallelFileReads = 0;
+    if (c.parallelFileReads > 16) c.parallelFileReads = 16;
     c.hitchLedger = get(L"Fixes", L"HitchLedger", c.hitchLedger) != 0;
     c.hitchLedgerMs = get(L"Fixes", L"HitchLedgerMs", c.hitchLedgerMs);
     c.hitchLedgerTickSplit = get(L"Fixes", L"HitchLedgerTickSplit", c.hitchLedgerTickSplit) != 0;
@@ -186,7 +224,49 @@ Config LoadConfig(const wchar_t* iniPath)
     c.pacingFlowWait = get(L"Fixes", L"PacingFlowWait", c.pacingFlowWait) != 0;
     c.pacingFlowWaitFrames = get(L"Fixes", L"PacingFlowWaitFrames", c.pacingFlowWaitFrames);
     c.pacingOwnerWalk = get(L"Fixes", L"PacingOwnerWalk", c.pacingOwnerWalk) != 0;
+    c.pacingHairActor = get(L"Fixes", L"PacingHairActor", c.pacingHairActor) != 0;
     c.pacingLeanFlowDrain = get(L"Fixes", L"PacingLeanFlowDrain", c.pacingLeanFlowDrain) != 0;
+    c.pacingFlowProgress = get(L"Fixes", L"PacingFlowProgress", c.pacingFlowProgress) != 0;
+    c.pacingBaseGate = get(L"Fixes", L"PacingBaseGate", c.pacingBaseGate);
+    c.pacingGateBoundFrames = get(L"Fixes", L"PacingGateBoundFrames", c.pacingGateBoundFrames);
+    c.pacingGateFadeHoldMs = get(L"Fixes", L"PacingGateFadeHoldMs", c.pacingGateFadeHoldMs);
+    c.pacingGateShownHoldMs = get(L"Fixes", L"PacingGateShownHoldMs", c.pacingGateShownHoldMs);
+    c.pacingGateShownHoldEnd = get(L"Fixes", L"PacingGateShownHoldEnd", c.pacingGateShownHoldEnd);
+    c.pacingGateCalmMs = get(L"Fixes", L"PacingGateCalmMs", c.pacingGateCalmMs);
+    c.pacingGateNearM = get(L"Fixes", L"PacingGateNearM", c.pacingGateNearM);
+    c.fadeInUnseen = get(L"Fixes", L"FadeInUnseen", c.fadeInUnseen);
+    c.fadeInUnseenWindowMs = get(L"Fixes", L"FadeInUnseenWindowMs", c.fadeInUnseenWindowMs);
+    c.createPreloadEarly = get(L"Fixes", L"CreatePreloadEarly", c.createPreloadEarly) != 0;
+    c.impactPreload = get(L"Fixes", L"ImpactPreload", c.impactPreload);
+    c.rowPreload = get(L"Fixes", L"RowPreload", c.rowPreload) != 0 ? 1 : 0;
+    c.cellObjectPreload = get(L"Fixes", L"CellObjectPreload", c.cellObjectPreload) != 0 ? 1 : 0;
+    c.createAhead = get(L"Fixes", L"CreateAhead", c.createAhead) != 0 ? 1 : 0;
+    c.createAheadSlackMs = get(L"Fixes", L"CreateAheadSlackMs", c.createAheadSlackMs);
+    if (c.createAheadSlackMs < 1) c.createAheadSlackMs = 1;
+    if (c.createAheadSlackMs > 14) c.createAheadSlackMs = 14;
+    c.createAheadPool = get(L"Fixes", L"CreateAheadPool", c.createAheadPool);
+    if (c.createAheadPool < 0) c.createAheadPool = 0;
+    if (c.createAheadPool > 32) c.createAheadPool = 32;
+    if (c.createAheadPool > 0 && c.createAheadPool < 12) c.createAheadPool = 12;
+    c.createAheadLevelled = get(L"Fixes", L"CreateAheadLevelled", c.createAheadLevelled) != 0 ? 1 : 0;
+    c.streamOutEndPlaySlice = get(L"Fixes", L"StreamOutEndPlaySlice", c.streamOutEndPlaySlice);
+    if (c.streamOutEndPlaySlice < 0) c.streamOutEndPlaySlice = 0;
+    if (c.streamOutEndPlaySlice > 1000) c.streamOutEndPlaySlice = 1000;
+    c.resetLoadersNoFlush = get(L"Fixes", L"ResetLoadersNoFlush", c.resetLoadersNoFlush) != 0;
+    c.gcMarkPriority = get(L"Fixes", L"GcMarkPriority", c.gcMarkPriority);
+    if (c.gcMarkPriority < 0 || c.gcMarkPriority > 2) c.gcMarkPriority = c.gcMarkPriority > 2 ? 2 : 0;
+    c.gcPassAfterBusy = get(L"Fixes", L"GcPassAfterBusy", c.gcPassAfterBusy);
+    if (c.gcPassAfterBusy < 0) c.gcPassAfterBusy = 0;
+    if (c.gcPassAfterBusy > 1000) c.gcPassAfterBusy = 1000;
+    if (c.gcPassAfterBusy > 1 && c.gcPassAfterBusy < 100) c.gcPassAfterBusy = 100;
+    c.gcPrepAhead = get(L"Fixes", L"GcPrepAhead", c.gcPrepAhead) != 0 ? 1 : 0;
+    c.gcPrepAheadMinAgeMs = get(L"Fixes", L"GcPrepAheadMinAgeMs", c.gcPrepAheadMinAgeMs);    // clamped 1000-30000 where used
+    c.gcPrepAheadMaxPerFrame = get(L"Fixes", L"GcPrepAheadMaxPerFrame", c.gcPrepAheadMaxPerFrame);  // 1-8
+    c.gcPrepAheadBudgetUs = get(L"Fixes", L"GcPrepAheadBudgetUs", c.gcPrepAheadBudgetUs);    // 100-2000
+    c.gcPrepAheadWindowMs = get(L"Fixes", L"GcPrepAheadWindowMs", c.gcPrepAheadWindowMs);    // 200-2000
+    c.creatureAnimPreload = get(L"Fixes", L"CreatureAnimPreload", c.creatureAnimPreload) != 0;
+    c.npcDeferAnimInit = get(L"Fixes", L"NpcDeferAnimInit", c.npcDeferAnimInit);
+    if (c.npcDeferAnimInit < 0 || c.npcDeferAnimInit > 2) c.npcDeferAnimInit = 0;
     c.pacingFadeAware = get(L"Fixes", L"PacingFadeAware", c.pacingFadeAware);
     if (c.pacingFadeAware > 1) c.pacingFadeAware = 1;  // lab modes 2 / 3 read as on
     c.memoryRelief = get(L"Fixes", L"MemoryRelief", c.memoryRelief) != 0;
@@ -208,6 +288,13 @@ Config LoadConfig(const wchar_t* iniPath)
     c.allocatorTrimWindowSeconds = get(L"Fixes", L"AllocatorTrimWindowSeconds", c.allocatorTrimWindowSeconds);
     c.immediateAllocatorLists = get(L"Fixes", L"ImmediateAllocatorLists", c.immediateAllocatorLists);
     c.allocatorTrimHeadroomMB = get(L"Fixes", L"AllocatorTrimHeadroomMB", c.allocatorTrimHeadroomMB);
+    c.gpuPoolKeepMB = get(L"Fixes", L"GpuPoolKeepMB", c.gpuPoolKeepMB);
+    c.gpuPoolKeepIniMB = c.gpuPoolKeepMB;
+    if (c.gpuPoolKeepMB < 0) c.gpuPoolKeepMB = 0;
+    if (c.gpuPoolKeepMB > 4096) c.gpuPoolKeepMB = 4096;
+    c.allocatorTrimCopyFloor = get(L"Fixes", L"AllocatorTrimCopyFloor", c.allocatorTrimCopyFloor);
+    if (c.allocatorTrimCopyFloor < 0) c.allocatorTrimCopyFloor = 0;
+    if (c.allocatorTrimCopyFloor > 512) c.allocatorTrimCopyFloor = 512;
     c.logFile = get(L"General", L"LogFile", c.logFile) != 0;
     c.gpuCrashReport = get(L"General", L"GpuCrashReport", c.gpuCrashReport) != 0;
     c.gpuPassMarkers = get(L"General", L"GpuPassMarkers", c.gpuPassMarkers);

@@ -58,7 +58,9 @@ static void StreamGranRun()
     Check(gran.i == 1 && gran.flags == 0x03000000u && gran.sets == 1, "streamgran: key 1 sets 1 through Set at the project priority");
     StreamGranBeforeAdd(true);
     Check(gran.sets == 1, "streamgran: no Set while the value is already right");
+    Check(StreamLoadingModeNow() == 0, "streamgran: StreamLoadingModeNow reads 0 in play (WaterInfoAfterCrossing)");
     limit.f = 10000.0f;  // Altar's loading mode
+    Check(StreamLoadingModeNow() == 1, "streamgran: StreamLoadingModeNow reads 1 in Altar's loading mode");
     StreamGranBeforeAdd(true);
     Check(gran.i == 10, "streamgran: loading mode (time limit 10 s): the game's 10");
     StreamGranBeforeAdd(true);
@@ -105,5 +107,50 @@ static void StreamGranRun()
     StreamGranBeforeAdd(true);
     Check(gran3.i == 2, "streamgran: out-of-range key = off");
     SetStreamRegisterGranularity(0);
+
+    // StreamInBudget (gatefix 2026-11-12): the AddToWorld slice max and the async loading limit, through the same hook
+    {
+        SgCvar g4{g_sgVt, 10, 10.0f, 0x03000000u, 0};
+        SgCvar lim{g_sgVt, 4, 4.0f, 0x03000000u, 0};
+        SgCvar slice{g_sgVt, 4, 4.0f, 0x04000000u, 0};  // the game's 4 ms (an ini priority, above the project's)
+        SgCvar async{g_sgVt, 5, 5.0f, 0x03000000u, 0};  // the game's 5 ms (project setting)
+        StreamGranTestSetup(&g4, &lim);
+        StreamBudgetTestSetup(&slice, &async);
+        StreamGranBeforeAdd(true);
+        Check(slice.f == 4.0f && async.f == 5.0f && slice.sets == 0 && async.sets == 0 && g4.sets == 0,
+              "streambudget: key 0 leaves the game's 4 / 5 ms (no Set), granularity key 0 untouched");
+        SetStreamInBudget(1);
+        StreamGranBeforeAdd(false);
+        Check(slice.sets == 0 && async.sets == 0, "streambudget: a call without a time limit is not touched");
+        StreamGranBeforeAdd(true);
+        Check(slice.f == 1.0f && async.f == 3.0f && slice.flags == 0x04000000u && async.flags == 0x03000000u && g4.sets == 0,
+              "streambudget: key 1 sets slice 1 / async 3 ms at each variable's own priority; the granularity untouched");
+        StreamGranBeforeAdd(true);
+        Check(slice.sets == 1 && async.sets == 1, "streambudget: no Set while the values are right");
+        lim.f = 10000.0f;  // Altar's loading mode
+        StreamGranBeforeAdd(true);
+        Check(slice.f == 4.0f && async.f == 5.0f, "streambudget: loading mode: the game's 4 / 5 ms");
+        lim.f = 4.0f;
+        SetStreamInBudget(2);
+        StreamGranBeforeAdd(true);
+        Check(slice.f == 2.0f && async.f == 3.0f, "streambudget: loading over, live key 2: slice 2 / async 3 ms");
+        SetStreamInBudget(0);
+        StreamGranBeforeAdd(true);
+        Check(slice.f == 4.0f && async.f == 5.0f, "streambudget: live key 0 puts the game's 4 / 5 ms back");
+        const int budgetSetsOff = slice.sets + async.sets;
+        StreamGranBeforeAdd(true);
+        Check(slice.sets + async.sets == budgetSetsOff, "streambudget: key 0 stays off (no further Set)");
+        SetStreamInBudget(1);
+        Set(&async, L"5", 0x0B000000u);  // the player's console 5
+        Set(&slice, L"6", 0x04000000u);  // the player's Engine.ini [SystemSettings] 6
+        StreamGranBeforeAdd(true);
+        Check(async.f == 5.0f && slice.f == 6.0f, "streambudget: a console value and another ini value are left alone");
+        SetStreamInBudget(7);  // out of range = off
+        StreamGranBeforeAdd(true);
+        Check(async.f == 5.0f && slice.f == 6.0f, "streambudget: out-of-range key = off");
+        SetStreamInBudget(0);
+        StreamBudgetTestSetup(nullptr, nullptr);
+    }
     StreamGranTestSetup(nullptr, nullptr);
+    Check(StreamLoadingModeNow() == -1, "streamgran: StreamLoadingModeNow reads -1 (unknown) without the hook / variables");
 }
